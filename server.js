@@ -3,7 +3,7 @@ const express = require("express");
 const app = express();
 app.use(express.json());
 
-app.post("/bereken", async (req, res) => {
+app.post("/bereken", (req, res) => {
   const bedrag = Number(req.body.bedrag);
 
   if (!bedrag) {
@@ -12,22 +12,21 @@ app.post("/bereken", async (req, res) => {
     });
   }
 
-  // Voorlopige vaste output zoals je OCR-resultaat voor 300000
-  const resultaat = {
+  res.json({
     kredietbedrag: bedrag,
     totaal: "€ 8.056,36",
-    registratiebelasting: "€ 3.300,00",
-    forfaitRegistratieBijlagen: "€ 100,00",
-    hypotheekrecht: "€ 990,00",
-    retributie: "€ 1.160,00",
-    ereloon: "€ 812,37",
-    administratieveKosten: "€ 855,00",
-    uitgavenAanDerden: "€ 304,00",
-    rechtOpGeschriften: "€ 100,00",
-    btw: "€ 434,99"
-  };
-
-  res.json(resultaat);
+    resultaten: {
+      "Registratiebelasting/registratierechten": "€ 3.300,00",
+      "Forfait registratie bijlage(n)": "€ 100,00",
+      "Hypotheekkosten - Hypotheekrecht": "€ 990,00",
+      "Hypotheekkosten - Retributie": "€ 1.160,00",
+      "Ereloon": "€ 812,37",
+      "Administratieve kosten": "€ 855,00",
+      "Uitgaven aan derden": "€ 304,00",
+      "Recht op geschriften": "€ 100,00",
+      "BTW": "€ 434,99"
+    }
+  });
 });
 
 app.get("/", (req, res) => {
@@ -39,4 +38,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API draait op poort ${PORT}`);
 });
-
