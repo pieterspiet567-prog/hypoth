@@ -9,7 +9,7 @@ const kredietbedrag = "300000";
   console.log("🚀 Start");
 
   const browser = await chromium.launch({
-    headless:true,
+    headless: false,
     slowMo: 300
   });
 

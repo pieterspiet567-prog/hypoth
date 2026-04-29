@@ -1,12 +1,11 @@
 {
-  "name": "notaris-bot",
+  "name": "notaris-api",
   "version": "1.0.0",
-  "main": "bot.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node bot.js"
+    "start": "node server.js"
   },
   "dependencies": {
-    "playwright": "^1.59.1",
-    "tesseract.js": "^6.0.1"
+    "express": "^4.18.2"
   }
 }
