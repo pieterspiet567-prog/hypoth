@@ -34,7 +34,7 @@ app.post("/bereken", async (req, res) => {
     });
 
     await page.goto(URL, {
-      waitUntil: "networkidle",
+      waitUntil: "domcontentloaded",
       timeout: 60000
     });
 
