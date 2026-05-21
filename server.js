@@ -1,108 +1,105 @@
 const express = require("express");
 const { chromium } = require("playwright");
-const Tesseract = require("tesseract.js");
 
 const app = express();
 app.use(express.json());
 
-const URL = "https://www.notaris.be/rekenmodules/wonen/berekening-van-de-kosten-voor-standaardkrediet";
+const URL =
+  "https://www.notaris.be/rekenmodules/wonen/berekening-van-de-kosten-voor-standaardkrediet";
+
+function cleanAmount(value) {
+  if (!value) return null;
+  return value.replace(/\s+/g, " ").trim();
+}
 
 app.post("/bereken", async (req, res) => {
-  const kredietbedrag = String(req.body.bedrag || "");
+  const kredietbedrag = String(req.body.bedrag || "").replace(/[^\d]/g, "");
 
   if (!kredietbedrag) {
-    return res.status(400).json({ error: "Geen bedrag meegegeven" });
+    return res.status(400).json({
+      error: "Geen bedrag meegegeven"
+    });
   }
 
   let browser;
 
   try {
     browser = await chromium.launch({
-      headless: true
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
     });
 
     const page = await browser.newPage({
-      viewport: { width: 1650, height: 920 }
+      viewport: { width: 1650, height: 1000 }
     });
 
     await page.goto(URL, {
-      waitUntil: "load",
+      waitUntil: "networkidle",
       timeout: 60000
     });
 
     try {
-      await page.getByText("ALLE COOKIES TOESTAAN", { exact: false }).click({ timeout: 5000 });
+      await page
+        .getByText("ALLE COOKIES TOESTAAN", { exact: false })
+        .click({ timeout: 3000 });
     } catch {}
 
-    await page.waitForTimeout(1500);
-
-    await page.evaluate(() => window.scrollTo(0, 520));
     await page.waitForTimeout(1000);
 
-    // Bedrag invullen
-    await page.mouse.click(250, 515);
-    await page.keyboard.press("Meta+A");
-    await page.keyboard.press("Backspace");
-    await page.keyboard.type(kredietbedrag);
+    const inputs = await page.locator("input").all();
 
-    await page.waitForTimeout(1000);
+    if (inputs.length < 2) {
+      throw new Error("Niet genoeg inputvelden gevonden op notaris.be");
+    }
 
-    // Radios
-    await page.mouse.click(116, 613); // Ja
-    await page.mouse.click(603, 613); // Ja / weet het niet
+    await inputs[0].fill(kredietbedrag);
+    await inputs[1].fill(kredietbedrag);
 
-    await page.waitForTimeout(500);
+    if (inputs[2]) {
+      const aanhorigheden = Math.round(Number(kredietbedrag) * 0.1);
+      await inputs[2].fill(String(aanhorigheden));
+    }
 
-    // Bereken
-    await page.mouse.click(165, 697);
+    await page.getByText("Bereken", { exact: false }).click();
 
     await page.waitForTimeout(5000);
 
-    await page.evaluate(() => window.scrollTo(0, 900));
-    await page.waitForTimeout(1500);
+    const bodyText = await page.locator("body").innerText();
 
-    const screenshotPath = "/tmp/resultaat.png";
+    function getAmountAfter(labelRegex) {
+      const regex = new RegExp(
+        labelRegex + "[\\s\\S]{0,150}?(€\\s?[\\d.,]+)",
+        "i"
+      );
 
-    await page.screenshot({
-      path: screenshotPath,
-      fullPage: false
-    });
+      const match = bodyText.match(regex);
+      return match ? cleanAmount(match[1]) : null;
+    }
 
-    const result = await Tesseract.recognize(
-      screenshotPath,
-      "nld+eng"
-    );
+    const totaalMatch = bodyText.match(/geraamd op\s*(€\s?[\d.,]+)/i);
 
-    const tekst = result.data.text;
-
-    const bedragen = tekst.match(/€\s?[\d.,]+/g) || [];
-
-    const labels = [
-      "totaal",
-      "registratiebelasting",
-      "forfaitRegistratieBijlagen",
-      "hypotheekrecht",
-      "retributie",
-      "ereloon",
-      "administratieveKosten",
-      "uitgavenAanDerden",
-      "rechtOpGeschriften",
-      "btw"
-    ];
-
-    const output = {};
-
-    labels.forEach((label, index) => {
-      output[label] = bedragen[index] || null;
-    });
+    const resultaten = {
+      totaal: totaalMatch ? cleanAmount(totaalMatch[1]) : null,
+      registratiebelasting: getAmountAfter(
+        "Registratiebelasting\\/registratierechten"
+      ),
+      forfait: getAmountAfter("Forfait registratie bijlage"),
+      hypotheekrecht: getAmountAfter(
+        "Hypotheekkosten\\s*-\\s*Hypotheekrecht"
+      ),
+      retributie: getAmountAfter("Hypotheekkosten\\s*-\\s*Retributie"),
+      ereloon: getAmountAfter("Ereloon"),
+      administratieve_kosten: getAmountAfter("Administratieve kosten"),
+      uitgaven_aan_derden: getAmountAfter("Uitgaven aan derden"),
+      recht_op_geschriften: getAmountAfter("Recht op geschriften"),
+      btw: getAmountAfter("BTW")
+    };
 
     return res.json({
       kredietbedrag,
       bron: "notaris.be",
-      resultaten: output,
-      ocrTekst: tekst
+      resultaten
     });
-
   } catch (err) {
     return res.status(500).json({
       error: "Berekening mislukt",
