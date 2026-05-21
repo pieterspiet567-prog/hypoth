@@ -37,6 +37,21 @@ app.post("/bereken", async (req, res) => {
       viewport: { width: 1650, height: 1000 }
     });
 
+    await page.route("**/*", route => {
+      const type = route.request().resourceType();
+
+      if (
+        type === "image" ||
+        type === "font" ||
+        type === "media" ||
+        type === "stylesheet"
+      ) {
+        route.abort();
+      } else {
+        route.continue();
+      }
+    });
+
     await page.goto(URL, {
       waitUntil: "domcontentloaded",
       timeout: 30000
@@ -45,10 +60,8 @@ app.post("/bereken", async (req, res) => {
     try {
       await page
         .getByText("ALLE COOKIES TOESTAAN", { exact: false })
-        .click({ timeout: 3000 });
+        .click({ timeout: 2000 });
     } catch {}
-
-    await page.waitForTimeout(1000);
 
     const inputs = await page.locator("input").all();
 
@@ -66,8 +79,8 @@ app.post("/bereken", async (req, res) => {
 
     await page.getByText("Bereken", { exact: false }).click();
 
-    await page.waitForSelector("text=Het totaal", {
-      timeout: 15000
+    await page.waitForSelector("text=Resultaten", {
+      timeout: 8000
     });
 
     const bodyText = await page.locator("body").innerText();
