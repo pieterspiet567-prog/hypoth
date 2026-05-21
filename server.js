@@ -26,7 +26,11 @@ app.post("/bereken", async (req, res) => {
   try {
     browser = await chromium.launch({
       headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage"
+      ]
     });
 
     const page = await browser.newPage({
@@ -35,7 +39,7 @@ app.post("/bereken", async (req, res) => {
 
     await page.goto(URL, {
       waitUntil: "domcontentloaded",
-      timeout: 60000
+      timeout: 30000
     });
 
     try {
@@ -62,7 +66,9 @@ app.post("/bereken", async (req, res) => {
 
     await page.getByText("Bereken", { exact: false }).click();
 
-    await page.waitForTimeout(5000);
+    await page.waitForSelector("text=Het totaal", {
+      timeout: 15000
+    });
 
     const bodyText = await page.locator("body").innerText();
 
